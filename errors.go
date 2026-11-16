@@ -49,7 +49,7 @@ var noProvider = []string{
 // that already carries a sentinel passes through, because a result is classified on every path it returns by.
 func classify(err error) error {
 	switch {
-	case err == nil, errors.Is(err, ErrLocked), errors.Is(err, ErrNoProvider):
+	case err == nil, errors.Is(err, ErrLocked), errors.Is(err, ErrNoProvider), errors.Is(err, ErrPortalUnavailable):
 		return err
 	case noKeyringService(err):
 		return fmt.Errorf("%w: %w", ErrNoProvider, err)

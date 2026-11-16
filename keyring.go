@@ -145,40 +145,60 @@ func (s *Store) GetIn(service, name string) (string, error) {
 		return "", err
 	}
 	key := itemKey{service, name}
-	s.mu.Lock()
-	if v, ok := s.late[key]; ok {
-		delete(s.late, key)
-		s.mu.Unlock()
-		return v, nil
-	}
-	f, running := s.inflight[key]
-	if running && f.stuck {
-		s.mu.Unlock()
-		return "", ErrPending
-	}
-	if !running {
-		f = &flight{done: make(chan struct{})}
-		s.inflight[key] = f
-		go s.run(service, name, f)
-	}
-	s.mu.Unlock()
-	timer := time.NewTimer(s.readTimeout())
-	defer timer.Stop()
-	select {
-	case <-f.done:
-		return f.value, classify(f.err)
-	case <-timer.C:
+	// One deadline for the whole call: a read a write overtook re-runs, and the retry must not extend the bound.
+	deadline := time.Now().Add(s.readTimeout())
+	for {
 		s.mu.Lock()
+		if v, ok := s.late[key]; ok {
+			delete(s.late, key)
+			s.mu.Unlock()
+			return v, nil
+		}
+		f, running := s.inflight[key]
+		if running && f.stuck {
+			s.mu.Unlock()
+			return "", ErrPending
+		}
+		if !running {
+			f = &flight{done: make(chan struct{})}
+			s.inflight[key] = f
+			go s.run(service, name, f)
+		}
+		s.mu.Unlock()
+		timer := time.NewTimer(time.Until(deadline))
 		select {
 		case <-f.done:
-			s.mu.Unlock()
+			timer.Stop()
+			// The value a write overtook is the one it replaced, so this caller reads again.
+			if s.staleFlight(f) {
+				continue
+			}
 			return f.value, classify(f.err)
-		default:
+		case <-timer.C:
+			s.mu.Lock()
+			select {
+			case <-f.done:
+				stale := f.stale
+				s.mu.Unlock()
+				if stale {
+					continue
+				}
+				return f.value, classify(f.err)
+			default:
+			}
+			f.stuck = true
+			s.mu.Unlock()
+			return "", ErrPending
 		}
-		f.stuck = true
-		s.mu.Unlock()
-		return "", ErrPending
 	}
+}
+
+// staleFlight reports whether a Set or Delete of the flight's item finished: the value it read is the one that write
+// replaced, so its caller reads again instead of taking it as current.
+func (s *Store) staleFlight(f *flight) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return f.stale
 }
 
 func (s *Store) run(service, name string, f *flight) {
