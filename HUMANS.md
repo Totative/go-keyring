@@ -12,37 +12,37 @@ go get github.com/Totative/go-keyring
 package main
 
 import (
-	"errors"
-	"fmt"
-	"log"
+ "errors"
+ "fmt"
+ "log"
 
-	"github.com/Totative/go-keyring"
+ "github.com/Totative/go-keyring"
 )
 
 func main() {
-	store, err := keyring.New(keyring.Options{
-		Service:    "example",
-		SealInfo:   "example secrets v1",
-		Folder:     "example-secrets",
-		OnUnlocked: func() { fmt.Println("keyring unlocked: retry what was deferred") },
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	if err := store.Set("api-key", "s3cret"); err != nil {
-		log.Fatal(err)
-	}
-	v, err := store.Get("api-key")
-	switch {
-	case errors.Is(err, keyring.ErrNotFound):
-		fmt.Println("signed out")
-	case errors.Is(err, keyring.ErrPending):
-		fmt.Println("waiting for the user to unlock the keyring")
-	case err != nil:
-		log.Fatal(err)
-	default:
-		fmt.Println(v)
-	}
+ store, err := keyring.New(keyring.Options{
+  Service:    "example",
+  SealInfo:   "example secrets v1",
+  Folder:     "example-secrets",
+  OnUnlocked: func() { fmt.Println("keyring unlocked: retry what was deferred") },
+ })
+ if err != nil {
+  log.Fatal(err)
+ }
+ if err := store.Set("api-key", "s3cret"); err != nil {
+  log.Fatal(err)
+ }
+ v, err := store.Get("api-key")
+ switch {
+ case errors.Is(err, keyring.ErrNotFound):
+  fmt.Println("signed out")
+ case errors.Is(err, keyring.ErrPending):
+  fmt.Println("waiting for the user to unlock the keyring")
+ case err != nil:
+  log.Fatal(err)
+ default:
+  fmt.Println(v)
+ }
 }
 ```
 
@@ -66,7 +66,7 @@ func main() {
 
 ## Requirements
 
-Go 1.27.3 or newer, plus `lefthook` and `gitleaks` on PATH if you want the git hooks.
+Go 1.27.4 or newer, plus `lefthook` and `gitleaks` on PATH if you want the git hooks.
 
 ```bash
 lefthook install
