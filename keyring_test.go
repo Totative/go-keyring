@@ -160,6 +160,50 @@ func TestSetAndDeleteDiscardAReadStillWaiting(t *testing.T) {
 	}
 }
 
+// a Get still inside ReadTimeout whose backend read was in flight when a Set finished must not hand back the value
+// that Set replaced.
+func TestSetOvertakesAReadStillWaiting(t *testing.T) {
+	s := newStore(t)
+	ring := map[string]string{"k": "old"}
+	read, release := make(chan struct{}, 1), make(chan struct{})
+	s.get = func(_, name string) (string, error) {
+		v := ring[name]
+		select {
+		case read <- struct{}{}:
+		default:
+		}
+		<-release
+		return v, nil
+	}
+	s.set = func(_, name, v string) error { ring[name] = v; return nil }
+	fired := make(chan struct{}, 1)
+	s.opts.OnUnlocked = func() { fired <- struct{}{} }
+	got, gotErr := make(chan string, 1), make(chan error, 1)
+	go func() {
+		v, err := s.Get("k")
+		got <- v
+		gotErr <- err
+	}()
+	<-read
+	if err := s.Set("k", "new"); err != nil {
+		t.Fatal(err)
+	}
+	close(release)
+	select {
+	case v := <-got:
+		if err := <-gotErr; v != "new" || err != nil {
+			t.Fatalf("Get = %q, %v after Set; want new", v, err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Get never returned")
+	}
+	select {
+	case <-fired:
+		t.Error("OnUnlocked fired for a Get that never timed out")
+	default:
+	}
+}
+
 func TestHostKeyringOutsideAFlatpak(t *testing.T) {
 	s := newStore(t)
 	ring := map[[2]string]string{}
