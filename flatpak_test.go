@@ -402,6 +402,40 @@ func TestHostItemsAdoptedWhenPortalAppears(t *testing.T) {
 	}
 }
 
+// A name wearing the tombstone prefix would be stored as another item's signed-out marker, which hides that
+// item's host copy instead of writing a secret of its own.
+func TestTombstoneNameIsReserved(t *testing.T) {
+	s, _ := flatpakEnv(t, fixedPortal("master"))
+	s.ringByService(map[[2]string]string{{testService, "token"}: "host"})
+	dead := "\x00deleted\x00token"
+	if err := s.Set(dead, "1"); !errors.Is(err, ErrReservedName) {
+		t.Fatalf("set: got %v", err)
+	}
+	if _, err := s.Get(dead); !errors.Is(err, ErrReservedName) {
+		t.Fatalf("get: got %v", err)
+	}
+	if err := s.Delete(dead); !errors.Is(err, ErrReservedName) {
+		t.Fatalf("delete: got %v", err)
+	}
+	if v, err := s.Get("token"); err != nil || v != "host" {
+		t.Fatalf("host secret poisoned: %q, %v", v, err)
+	}
+}
+
+// An empty shared name is the flat key "<shared>." that the store's own item of that name also uses.
+func TestEmptySharedNameIsReserved(t *testing.T) {
+	s, _ := flatpakEnv(t, fixedPortal("master"))
+	if err := s.SetIn(testShared, "", "FROM-IN"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Set(testShared+".", "FROM-OWN"); !errors.Is(err, ErrReservedName) {
+		t.Fatalf("set: got %v", err)
+	}
+	if v, err := s.GetIn(testShared, ""); err != nil || v != "FROM-IN" {
+		t.Fatalf("got %q, %v", v, err)
+	}
+}
+
 func TestPlainMigrationUsesSharedNaming(t *testing.T) {
 	s, dir := noPortalEnv(t)
 	if err := save(filepath.Join(dir, plainFile), nil, map[string]string{testShared + ".team.x": "t", "token": "k"}); err != nil {
