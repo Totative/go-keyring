@@ -26,6 +26,10 @@ var (
 	// ErrReservedName means an item of the store's own service is named "<shared service>.<name>", which the
 	// Flatpak files keep for that shared service's item.
 	ErrReservedName = errors.New("keyring: the name collides with a shared service's item")
+	// ErrServiceNotShared means GetIn, SetIn or DeleteIn named a service that is not the store's Service and
+	// not listed in SharedServices. Under a Flatpak the files would store it as "<service>.<name>", the same
+	// key as Set("<service>.<name>").
+	ErrServiceNotShared = errors.New("keyring: service is not in SharedServices")
 	// ErrNoProvider wraps the D-Bus error raised when nothing answers as the Secret Service.
 	ErrNoProvider = errors.New("keyring: no Secret Service provider is running")
 )
