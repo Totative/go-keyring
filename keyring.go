@@ -283,11 +283,20 @@ func (s *Store) DeleteIn(service, name string) error {
 // checkName refuses an item of the store's own service named like a shared one: the Flatpak files keep both as
 // "<service>.<name>", so the two would be one item. A flat name starting with the tombstone prefix would be read
 // as another item's signed-out marker, which suppresses its host adoption, so no name may carry it.
+// Under a Flatpak it also refuses a foreign service that is not in SharedServices, for the same collision.
 func (s *Store) checkName(service, name string) error {
 	if strings.HasPrefix(s.flatpakName(service, name), tombstonePrefix) {
 		return ErrReservedName
 	}
 	if service != s.opts.Service {
+		if flatpak.Inside() {
+			for _, svc := range s.opts.SharedServices {
+				if svc == service {
+					return nil
+				}
+			}
+			return ErrServiceNotShared
+		}
 		return nil
 	}
 	if _, _, shared := s.sharedItem(name); shared {
