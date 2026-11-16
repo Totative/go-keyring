@@ -82,6 +82,7 @@ func TestOwnNameCannotShadowSharedItem(t *testing.T) {
 // while the first is still blocked in the backend.
 func TestSeparatorsDoNotJoinItems(t *testing.T) {
 	s, _ := flatpakEnv(t, fixedPortal("master"))
+	s.opts.SharedServices = []string{"a\nb", "a"}
 	s.ringByService(map[[2]string]string{{"a\nb", "c"}: "one", {"a", "b\nc"}: "two"})
 	orig := s.get
 	entered, release := make(chan struct{}), make(chan struct{})
