@@ -27,6 +27,9 @@ const (
 	plainFile  = "secrets.json"
 )
 
+// tombstonePrefix starts the sealed-store key that marks a signed-out secret. It is a stored format.
+const tombstonePrefix = "\x00deleted\x00"
+
 // masterKey returns the AES key derived from the portal secret. The caller holds storeMu.
 func (s *Store) masterKey() ([]byte, error) {
 	if s.keyDone {
@@ -131,7 +134,7 @@ func (s *Store) keyringPlain(dir string) error {
 
 func (s *Store) sharedItem(flat string) (svc, name string, ok bool) {
 	for _, ns := range s.opts.SharedServices {
-		if rest, found := strings.CutPrefix(flat, ns+"."); found && rest != "" {
+		if rest, found := strings.CutPrefix(flat, ns+"."); found {
 			return ns, rest, true
 		}
 	}
@@ -420,7 +423,7 @@ func (s *Store) flatpakGet(service, name string) (string, error) {
 // (locked host) is never adopted back. Set clears it; a store without any reads as an empty set. The key is a
 // stored format.
 func (s *Store) tombstone(service, name string) string {
-	return "\x00deleted\x00" + s.flatpakName(service, name)
+	return tombstonePrefix + s.flatpakName(service, name)
 }
 
 // hostItems is the host-keyring namings of a secret: its own, then the flat one an earlier release wrote.
