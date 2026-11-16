@@ -62,6 +62,24 @@ func TestFlatpakStore(t *testing.T) {
 		}
 	})
 
+	t.Run("a portal failure on a sealed file is not a missing provider", func(t *testing.T) {
+		s, _ := flatpakEnv(t, fixedPortal("master"))
+		if err := s.Set("api", "tok"); err != nil {
+			t.Fatal(err)
+		}
+		cause := errors.New("org.freedesktop.DBus.Error.ServiceUnknown")
+		s.portalSecret, s.keyDone = func(context.Context) ([]byte, error) { return nil, cause }, false
+		if _, err := s.Get("api"); !errors.Is(err, ErrPortalUnavailable) || errors.Is(err, ErrNoProvider) || !errors.Is(err, cause) {
+			t.Fatalf("Get = %v; want the portal error alone, with its cause", err)
+		}
+		if err := s.Set("api", "tok2"); !errors.Is(err, ErrPortalUnavailable) || errors.Is(err, ErrNoProvider) {
+			t.Fatalf("Set = %v; want the portal error alone", err)
+		}
+		if got := classify(errors.New("org.freedesktop.DBus.Error.ServiceUnknown")); !errors.Is(got, ErrNoProvider) {
+			t.Errorf("a bare D-Bus no-provider error must still classify: %v", got)
+		}
+	})
+
 	t.Run("no portal refuses a write and writes no file", func(t *testing.T) {
 		s, dir := noPortalEnv(t)
 		err := s.Set("api", "tok")
