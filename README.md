@@ -3,7 +3,7 @@
 <div align="center">
 
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
-[![Go](https://img.shields.io/badge/go-1.27.3+-00ADD8?logo=go&logoColor=white)](go.mod)
+[![Go](https://img.shields.io/badge/go-1.27.4+-00ADD8?logo=go&logoColor=white)](go.mod)
 
 </div>
 
