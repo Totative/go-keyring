@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -289,12 +290,7 @@ func (s *Store) checkName(service, name string) error {
 		return ErrReservedName
 	}
 	if service != s.opts.Service {
-		if flatpak.Inside() {
-			for _, svc := range s.opts.SharedServices {
-				if svc == service {
-					return nil
-				}
-			}
+		if flatpak.Inside() && !slices.Contains(s.opts.SharedServices, service) {
 			return ErrServiceNotShared
 		}
 		return nil
