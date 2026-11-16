@@ -142,8 +142,8 @@ func (s *Store) sharedItem(flat string) (svc, name string, ok bool) {
 }
 
 // Plaintext reports whether secrets are in the unencrypted fallback file: inside a Flatpak, with neither the
-// secret portal nor a host Secret Service. A store busy with a prompt returns (false, ErrPending) instead of
-// waiting; a store that cannot be resolved returns (false, err).
+// secret portal nor a host Secret Service, and a plain file on disk. A store busy with a prompt returns
+// (false, ErrPending) instead of waiting; a store that cannot be resolved returns (false, err).
 func (s *Store) Plaintext() (bool, error) {
 	if !flatpak.Inside() {
 		return false, nil
@@ -152,11 +152,21 @@ func (s *Store) Plaintext() (bool, error) {
 		return false, ErrPending
 	}
 	defer s.storeMu.Unlock()
-	_, key, host, err := s.location(false)
+	path, key, host, err := s.location(false)
 	if err != nil {
 		return false, err
 	}
-	return !host && key == nil, nil
+	if host || key != nil {
+		return false, nil
+	}
+	_, err = os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // sealPlain moves the secrets of a plain file, written while the portal was missing, into the sealed file once the

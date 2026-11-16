@@ -162,6 +162,14 @@ func TestFlatpakStore(t *testing.T) {
 		}
 	})
 
+	t.Run("no plain file is not plaintext", func(t *testing.T) {
+		s, _ := noPortalEnv(t)
+		p, err := s.Plaintext()
+		if p || err != nil {
+			t.Fatalf("Plaintext %v, %v", p, err)
+		}
+	})
+
 	t.Run("a plain file moves to the keyring once it answers", func(t *testing.T) {
 		s, dir := noPortalEnv(t)
 		seedPlain(t, dir, map[string]string{"token": "key-1"})
