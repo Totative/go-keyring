@@ -197,23 +197,20 @@ func (s *Store) sealPlain(dir string, key []byte) error {
 	return safefs.Remove(plain)
 }
 
-// readFile reads through os.Root so the name cannot leave the store folder. OpenRoot follows a
-// directory symlink, so a replaced store folder is refused before the open.
+func untrustedDir(dir string) error {
+	return fmt.Errorf("keyring: secrets folder %s is a link or belongs to another user", dir)
+}
+
+// readFile opens the store folder with O_NOFOLLOW and checks that fd, then reads
+// the name through openat, so a symlink cannot be swapped in after a path stat.
 func readFile(path string) ([]byte, error) {
 	dir := filepath.Dir(path)
-	info, err := os.Lstat(dir)
+	f, err := openOwnedDir(dir)
 	if err != nil {
 		return nil, err
 	}
-	if !info.IsDir() || !ownedByUser(info) {
-		return nil, fmt.Errorf("keyring: secrets folder %s is a link or belongs to another user", dir)
-	}
-	root, err := os.OpenRoot(dir)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = root.Close() }()
-	return root.ReadFile(filepath.Base(path))
+	defer func() { _ = f.Close() }()
+	return readInDir(f, filepath.Base(path))
 }
 
 func load(path string, key []byte) (map[string]string, error) {
@@ -246,12 +243,14 @@ func secureDir(dir string) error {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	info, err := os.Lstat(dir)
+	f, err := openOwnedDir(dir)
 	if err != nil {
 		return err
 	}
-	if !info.IsDir() || !ownedByUser(info) {
-		return fmt.Errorf("keyring: secrets folder %s is a link or belongs to another user", dir)
+	defer func() { _ = f.Close() }()
+	info, err := f.Stat()
+	if err != nil {
+		return err
 	}
 	if info.Mode().Perm()&0o077 != 0 {
 		return safefs.Chmod(dir, 0o700)

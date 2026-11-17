@@ -254,6 +254,24 @@ func TestGetRefusesASymlinkedSecretsFolder(t *testing.T) {
 	}
 }
 
+// A secrets file swapped for a symlink is read if the folder is Lstat'd and the name is opened later.
+func TestGetRefusesASymlinkAtTheSecretsFile(t *testing.T) {
+	s, dir := noPortalEnv(t)
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	planted := filepath.Join(dir, "planted.json")
+	if err := os.WriteFile(planted, []byte(`{"token":"planted"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("planted.json", filepath.Join(dir, plainFile)); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.Get("token"); err == nil {
+		t.Fatalf("Get followed a symlink at the secrets file: %q", v)
+	}
+}
+
 func TestStoreDirNeedsAHome(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_DATA_HOME", "")
