@@ -46,7 +46,6 @@ func (s *Store) masterKey() ([]byte, error) {
 		s.keyVal, err = hkdf.Key(sha256.New, secret, nil, s.opts.SealInfo, 32)
 	}
 	if err != nil {
-		s.keyErr = err
 		return nil, err
 	}
 	s.keyDone = true

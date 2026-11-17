@@ -61,7 +61,6 @@ type Store struct {
 	// the next operation asks again.
 	keyDone bool
 	keyVal  []byte
-	keyErr  error
 	// The host keyring is probed until it answers; only a definite "nothing on the bus" is cached.
 	hostDone bool
 	hostVal  bool
