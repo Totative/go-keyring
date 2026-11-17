@@ -210,7 +210,7 @@ func FuzzClassify(f *testing.F) {
 				t.Fatal("hostAbsent missed locked")
 			}
 		default:
-			if got != err {
+			if errors.Is(got, ErrNoProvider) || errors.Is(got, ErrLocked) || got.Error() != msg {
 				t.Fatalf("passthrough: %v", got)
 			}
 			if hostAbsent(err) {
