@@ -46,7 +46,6 @@ func (s *Store) masterKey() ([]byte, error) {
 		s.keyVal, err = hkdf.Key(sha256.New, secret, nil, s.opts.SealInfo, 32)
 	}
 	if err != nil {
-		s.keyErr = err
 		return nil, err
 	}
 	s.keyDone = true
@@ -198,9 +197,18 @@ func (s *Store) sealPlain(dir string, key []byte) error {
 	return safefs.Remove(plain)
 }
 
-// readFile reads through os.Root so the name cannot leave the store folder.
+// readFile reads through os.Root so the name cannot leave the store folder. OpenRoot follows a
+// directory symlink, so a replaced store folder is refused before the open.
 func readFile(path string) ([]byte, error) {
-	root, err := os.OpenRoot(filepath.Dir(path))
+	dir := filepath.Dir(path)
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return nil, err
+	}
+	if !info.IsDir() || !ownedByUser(info) {
+		return nil, fmt.Errorf("keyring: secrets folder %s is a link or belongs to another user", dir)
+	}
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, err
 	}

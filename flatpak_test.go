@@ -235,6 +235,25 @@ func TestFlatpakStoreTightensAnExistingFolderAndRefusesALink(t *testing.T) {
 	}
 }
 
+// OpenRoot follows a directory symlink, so Get would read a replaced store folder and, with a host keyring,
+// migrate that planted file into Secret Service.
+func TestGetRefusesASymlinkedSecretsFolder(t *testing.T) {
+	s, link := noPortalEnv(t)
+	target := t.TempDir()
+	seedPlain(t, target, map[string]string{"token": "planted"})
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	ring := map[[2]string]string{}
+	s.ringByService(ring)
+	if v, err := s.Get("token"); err == nil {
+		t.Fatalf("Get followed a symlinked secrets folder: %q", v)
+	}
+	if _, ok := ring[[2]string{testService, "token"}]; ok {
+		t.Error("planted plain file was migrated to the host keyring")
+	}
+}
+
 func TestStoreDirNeedsAHome(t *testing.T) {
 	t.Setenv("HOME", "")
 	t.Setenv("XDG_DATA_HOME", "")
