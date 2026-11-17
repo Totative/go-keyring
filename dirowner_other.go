@@ -11,7 +11,7 @@ import (
 func ownedByUser(fs.FileInfo) bool { return true }
 
 func openOwnedDir(dir string) (*os.File, error) {
-	f, err := os.Open(dir)
+	f, err := os.Open(dir) //nolint:gosec // G304: dir is the store folder this package already chose
 	if err != nil {
 		return nil, err
 	}
