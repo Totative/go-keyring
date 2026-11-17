@@ -8,6 +8,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -160,6 +161,60 @@ func FuzzPlainFile(f *testing.F) {
 		for k, v := range m {
 			if m2[k] != v {
 				t.Fatalf("json round-trip %q: %q != %q", k, v, m2[k])
+			}
+		}
+	})
+}
+
+// FuzzClassify feeds D-Bus and zalando error text, which the backend surfaces as err.Error(), through classify
+// and hostAbsent. A match must wrap exactly once; anything else must pass through.
+func FuzzClassify(f *testing.F) {
+	f.Add("The name org.freedesktop.secrets was not provided by any .service files: org.freedesktop.DBus.Error.ServiceUnknown")
+	f.Add("failed to unlock correct collection '/x'")
+	f.Add("boom")
+	f.Add("")
+	f.Add(unlockFailed)
+	for _, frag := range noProvider {
+		f.Add(frag)
+	}
+	f.Fuzz(func(t *testing.T, msg string) {
+		err := errors.New(msg)
+		got := classify(err)
+		if got == nil {
+			t.Fatal("classify dropped a non-nil error")
+		}
+		if again := classify(got); again.Error() != got.Error() {
+			t.Fatalf("classify wrapped twice: %v", again)
+		}
+		matchNo := false
+		for _, frag := range noProvider {
+			if strings.Contains(msg, frag) {
+				matchNo = true
+				break
+			}
+		}
+		matchLock := strings.Contains(msg, unlockFailed)
+		switch {
+		case matchNo:
+			if !errors.Is(got, ErrNoProvider) || !errors.Is(got, err) {
+				t.Fatalf("no provider: %v", got)
+			}
+			if !hostAbsent(err) {
+				t.Fatal("hostAbsent missed no-provider")
+			}
+		case matchLock:
+			if !errors.Is(got, ErrLocked) || !errors.Is(got, err) {
+				t.Fatalf("locked: %v", got)
+			}
+			if !hostAbsent(err) {
+				t.Fatal("hostAbsent missed locked")
+			}
+		default:
+			if got != err {
+				t.Fatalf("passthrough: %v", got)
+			}
+			if hostAbsent(err) {
+				t.Fatalf("hostAbsent on unrelated: %q", msg)
 			}
 		}
 	})
