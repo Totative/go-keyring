@@ -20,8 +20,9 @@ import (
 )
 
 // Inside a Flatpak secrets live in one file in the sandbox's own data folder, sealed with the XDG Secret portal's
-// per-app master secret. Without the portal they go to the host's Secret Service, and with neither to a plain 0600
-// file. The two file names are a format: a store written by an earlier release is found by them.
+// per-app master secret. Without the portal they go to the host's Secret Service, and with neither a write fails
+// with ErrPortalUnavailable; a plain 0600 file from an earlier release is only read. The two file names are a
+// format: a store written by an earlier release is found by them.
 const (
 	sealedFile = "secrets"
 	plainFile  = "secrets.json"
@@ -107,7 +108,8 @@ func (s *Store) location(write bool) (path string, key []byte, host bool, err er
 }
 
 // keyringPlain moves the secrets of a plain file into the host keyring and removes the file, so none is lost or
-// left readable on disk. The file stays when any write fails.
+// left readable on disk. A tombstone is not copied (the host refuses NUL): it deletes the host item of the signed-out
+// secret instead, so that secret stays signed out. The file stays when any write fails.
 func (s *Store) keyringPlain(dir string) error {
 	plain := filepath.Join(dir, plainFile)
 	if _, err := os.Lstat(plain); errors.Is(err, fs.ErrNotExist) {
@@ -120,9 +122,19 @@ func (s *Store) keyringPlain(dir string) error {
 		return err
 	}
 	for name, v := range m {
+		dead := false
+		if rest, ok := strings.CutPrefix(name, tombstonePrefix); ok {
+			name, dead = rest, true
+		}
 		svc, item := s.opts.Service, name
 		if ns, rest, ok := s.sharedItem(name); ok {
 			svc, item = ns, rest
+		}
+		if dead {
+			if err := s.del(svc, item); err != nil && !errors.Is(err, ErrNotFound) {
+				return classify(err)
+			}
+			continue
 		}
 		if err := s.set(svc, item, v); err != nil {
 			return classify(err)
