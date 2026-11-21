@@ -256,3 +256,26 @@ func TestPlainFixtureMigrates(t *testing.T) {
 		}
 	})
 }
+
+// A plain file written by v0.3.0 holds sign-out tombstones, whose NUL a real Secret Service refuses: moving the
+// file must delete the signed-out item and copy only real secrets.
+func TestKeyringPlainTombstone(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, []byte(`{"token":"k","\u0000deleted\u0000gone":"1"}`))
+	s := newStore(t)
+	ring := map[[2]string]string{{testService, "gone"}: "stale"}
+	s.ringByService(ring)
+	set := s.set
+	s.set = func(svc, name, v string) error {
+		if strings.ContainsRune(svc+name+v, 0) {
+			return errors.New("secret service refuses NUL")
+		}
+		return set(svc, name, v)
+	}
+	if err := s.keyringPlain(dir); err != nil {
+		t.Fatal(err)
+	}
+	if len(ring) != 1 || ring[[2]string{testService, "token"}] != "k" {
+		t.Fatalf("ring %v", ring)
+	}
+}

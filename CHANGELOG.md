@@ -6,6 +6,10 @@ Notable changes to `go-keyring`. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Moving a plain `secrets.json` to the host keyring no longer copies the sign-out tombstones v0.3.0 wrote into it. The host keyring refuses their NUL byte, so the move failed on every call. A tombstone now deletes the host item it names.
+
 ### Added
 
 - `ErrPortalUnavailable`, returned when the secret portal fails and a write would have gone to the plain file, or a sealed file cannot be opened.
